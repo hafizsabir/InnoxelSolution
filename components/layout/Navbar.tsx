@@ -25,6 +25,8 @@ import {
   LightMode,
   DarkMode,
   FlashOn,
+  AdminPanelSettings,
+  LogoutOutlined,
 } from '@mui/icons-material';
 import { useColorMode } from '@/theme/ThemeRegistry';
 import Link from 'next/link';
@@ -43,6 +45,20 @@ export default function Navbar() {
   const { toggleColorMode, mode } = useColorMode();
   const pathname = usePathname();
   const trigger = useScrollTrigger({ threshold: 50 });
+  const [user, setUser] = useState<{ role: string; email: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setUser(d?.user ?? null))
+      .catch(() => {});
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setUser(null);
+    window.location.href = '/';
+  };
 
   const handleDrawerToggle = () => setMobileOpen((prev) => !prev);
 
@@ -138,14 +154,42 @@ export default function Navbar() {
               </IconButton>
             </Tooltip>
 
-            <Button
-              variant="contained"
-              component={Link}
-              href="/contact"
-              sx={{ ml: 1, px: 3 }}
-            >
-              Get Started
-            </Button>
+            {user?.role === 'admin' && (
+              <Tooltip title="Admin Panel">
+                <IconButton component={Link} href="/admin" sx={{ ml: 0.5 }}>
+                  <AdminPanelSettings sx={{ color: 'primary.main', fontSize: 24 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            {user ? (
+              <Tooltip title={`Sign out (${user.email})`}>
+                <IconButton onClick={handleLogout} sx={{ ml: 0.5 }}>
+                  <LogoutOutlined sx={{ color: 'text.secondary', fontSize: 22 }} />
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
+                <Button
+                  component={Link}
+                  href="/login"
+                  variant="outlined"
+                  size="small"
+                  sx={{ px: 2.5, fontWeight: 600 }}
+                >
+                  Login
+                </Button>
+                <Button
+                  component={Link}
+                  href="/signup"
+                  variant="contained"
+                  size="small"
+                  sx={{ px: 2.5, fontWeight: 600 }}
+                >
+                  Sign Up
+                </Button>
+              </Box>
+            )}
           </Box>
 
           {/* Mobile controls */}
@@ -218,16 +262,28 @@ export default function Navbar() {
             </ListItem>
           ))}
         </List>
-        <Box sx={{ mt: 3 }}>
-          <Button
-            variant="contained"
-            fullWidth
-            component={Link}
-            href="/contact"
-            onClick={handleDrawerToggle}
-          >
-            Get Started
-          </Button>
+        <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {user ? (
+            <>
+              {user.role === 'admin' && (
+                <Button variant="outlined" fullWidth component={Link} href="/admin" onClick={handleDrawerToggle} startIcon={<AdminPanelSettings />}>
+                  Admin Panel
+                </Button>
+              )}
+              <Button variant="outlined" color="error" fullWidth onClick={() => { handleLogout(); handleDrawerToggle(); }} startIcon={<LogoutOutlined />}>
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outlined" fullWidth component={Link} href="/login" onClick={handleDrawerToggle}>
+                Login
+              </Button>
+              <Button variant="contained" fullWidth component={Link} href="/signup" onClick={handleDrawerToggle}>
+                Sign Up
+              </Button>
+            </>
+          )}
         </Box>
       </Drawer>
     </>

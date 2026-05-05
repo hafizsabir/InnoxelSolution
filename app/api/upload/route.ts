@@ -1,25 +1,37 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { writeFileSync, mkdirSync } from 'fs';
-import path from 'path';
+import { NextResponse, type NextRequest } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
+    if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+
+    const ext = file.name.split('.').pop() ?? 'bin';
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-    mkdirSync(uploadDir, { recursive: true });
+    const { data, error } = await supabase.storage
+      .from('blog-media')
+      .upload(filename, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    const ext = file.name.split('.').pop() ?? 'bin';
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    writeFileSync(path.join(uploadDir, filename), buffer);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ url: `/uploads/${filename}` });
+    const { data: { publicUrl } } = supabase.storage
+      .from('blog-media')
+      .getPublicUrl(data.path);
+
+    return NextResponse.json({ url: publicUrl });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
