@@ -1,16 +1,16 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box, Container, TextField, Button, Typography, Paper,
-  InputAdornment, IconButton, Alert, Divider, Stack,
+  InputAdornment, IconButton, Alert, Stack,
 } from '@mui/material';
 import { Email, Lock, Visibility, VisibilityOff, FlashOn, Shield } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+
 
 const ERROR_MESSAGES: Record<string, string> = {
   forbidden: '🚫 Access denied. Only administrators can access that page.',
@@ -147,18 +147,7 @@ function LoginForm() {
               </Typography>
             </Box>
 
-            <Divider sx={{ my: 3 }}>
-              <Typography variant="caption" color="text.disabled">OR</Typography>
-            </Divider>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                Don't have an account?{' '}
-                <Box component={Link} href="/signup" sx={{ color: 'primary.main', fontWeight: 700, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
-                  Create one
-                </Box>
-              </Typography>
-            </Box>
           </Paper>
         </motion.div>
       </Container>

@@ -13,10 +13,17 @@ export interface ContentBlock {
   content?: string;
   level?: 2 | 3;
   src?: string;
+  /** Supabase Storage path for this image block (used to delete the file) */
+  path?: string;
   embedUrl?: string;
   caption?: string;
   language?: string;
   quoteAuthor?: string;
+}
+
+export interface UploadResult {
+  url: string;
+  path: string;
 }
 
 export interface BlogPost {

@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useReducer } from 'react';
 import {
   Box, TextField, Typography, Button, Stack, IconButton, MenuItem,
   Select, Switch, FormControlLabel, Divider, Paper, Chip, Tooltip,
@@ -10,10 +10,10 @@ import {
 import {
   Delete, ArrowUpward, ArrowDownward, Image as ImageIcon,
   FormatQuote, Code as CodeIcon, VideoLibrary, TextFields,
-  Remove, CloudUpload, Save, Publish, Title, Cancel,
+  Remove, CloudUpload, Save, Publish, Title, Cancel, Close,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import type { BlogPost, ContentBlock, BlockType } from '@/types/blog';
+import type { BlogPost, ContentBlock, BlockType, UploadResult } from '@/types/blog';
 
 const CATEGORIES = ['Artificial Intelligence', 'Architecture', 'Mobile Dev', 'Cloud Native', 'Cybersecurity', 'Web Development'];
 const CATEGORY_COLORS: Record<string, string> = {
@@ -29,6 +29,46 @@ interface Props { initialData?: BlogPost; isEditing?: boolean; }
 
 function newId() { return Date.now().toString() + Math.random().toString(36).slice(2); }
 
+/** Delete a file from Supabase Storage via our API */
+async function deleteStorageFile(path: string): Promise<void> {
+  try {
+    await fetch('/api/upload', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+  } catch {
+    // Non-blocking — UI state is already cleared
+  }
+}
+
+// ── Content reducer (defined at module scope so it's never re-created) ──
+type ContentAction =
+  | { type: 'ADD'; blockType: BlockType }
+  | { type: 'UPDATE'; id: string; patch: Partial<ContentBlock> }
+  | { type: 'REMOVE'; id: string }
+  | { type: 'MOVE'; idx: number; dir: 'up' | 'down' }
+  | { type: 'SET'; blocks: ContentBlock[] };
+
+function contentReducer(state: ContentBlock[], action: ContentAction): ContentBlock[] {
+  switch (action.type) {
+    case 'ADD':
+      return [...state, { id: newId(), type: action.blockType, content: '', level: action.blockType === 'heading' ? 2 : undefined }];
+    case 'UPDATE':
+      return state.map(b => b.id === action.id ? { ...b, ...action.patch } : b);
+    case 'REMOVE':
+      return state.length <= 1 ? state : state.filter(b => b.id !== action.id);
+    case 'MOVE': {
+      const next = [...state];
+      const t = action.dir === 'up' ? action.idx - 1 : action.idx + 1;
+      if (t >= 0 && t < next.length) { [next[action.idx], next[t]] = [next[t], next[action.idx]]; }
+      return next;
+    }
+    default:
+      return state;
+  }
+}
+
 export default function BlogEditor({ initialData, isEditing = false }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -43,45 +83,95 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
   const [author, setAuthor] = useState(initialData?.author || '');
   const [authorRole, setAuthorRole] = useState(initialData?.authorRole || '');
   const [featured, setFeatured] = useState(initialData?.featured || false);
+
+  // Cover image: track both the public URL (for display) and the storage path (for deletion)
   const [coverImage, setCoverImage] = useState<string | null>(initialData?.coverImage || null);
-  const [uploading, setUploading] = useState(false);
-  const [content, setContent] = useState<ContentBlock[]>(
+  const [coverImagePath, setCoverImagePath] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+
+  const [content, dispatch] = useReducer(
+    contentReducer,
     initialData?.content?.length ? initialData.content : [{ id: newId(), type: 'paragraph', content: '' }]
   );
+
+  // Track which block IDs are currently uploading
+  const [uploadingBlocks, setUploadingBlocks] = useState<Set<string>>(new Set());
 
   const coverRef = useRef<HTMLInputElement>(null);
 
   // ── Block helpers ──
-  const addBlock = (type: BlockType) =>
-    setContent(prev => [...prev, { id: newId(), type, content: '', level: type === 'heading' ? 2 : undefined }]);
+  const addBlock = (blockType: BlockType) => dispatch({ type: 'ADD', blockType });
 
+  // Plain function — no useCallback needed; dispatch is always stable from useReducer
   const updateBlock = (id: string, patch: Partial<ContentBlock>) =>
-    setContent(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b));
+    dispatch({ type: 'UPDATE', id, patch });
 
-  const removeBlock = (id: string) =>
-    setContent(prev => prev.length > 1 ? prev.filter(b => b.id !== id) : prev);
-
-  const moveBlock = (idx: number, dir: 'up' | 'down') => {
-    const next = [...content];
-    const t = dir === 'up' ? idx - 1 : idx + 1;
-    if (t >= 0 && t < next.length) { [next[idx], next[t]] = [next[t], next[idx]]; setContent(next); }
+  const removeBlock = (id: string) => {
+    // Side effect MUST happen before dispatch, not inside the reducer
+    const block = content.find(b => b.id === id);
+    if (block?.type === 'image' && block.path) {
+      deleteStorageFile(block.path);
+    }
+    dispatch({ type: 'REMOVE', id });
   };
 
-  // ── Upload helper ──
-  const uploadFile = async (file: File, blockId?: string) => {
-    setUploading(true);
+  const moveBlock = (idx: number, dir: 'up' | 'down') =>
+    dispatch({ type: 'MOVE', idx, dir });
+
+  // ── Upload helpers ──
+  const uploadCover = async (file: File) => {
+    setCoverUploading(true);
+    setError('');
     const fd = new FormData();
     fd.append('file', file);
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.url) {
-        if (blockId) updateBlock(blockId, { src: data.url });
-        else setCoverImage(data.url);
-      } else {
-        setError('Upload failed: ' + (data.error || 'unknown'));
+      const data: UploadResult & { error?: string } = await res.json();
+      if (!res.ok || data.error) {
+        setError('Cover upload failed: ' + (data.error || 'Unknown error'));
+        return;
       }
-    } catch { setError('Upload failed.'); } finally { setUploading(false); }
+      // If there was a previous cover image in storage, delete it
+      if (coverImagePath) deleteStorageFile(coverImagePath);
+      setCoverImage(data.url);
+      setCoverImagePath(data.path);
+    } catch {
+      setError('Cover upload failed — network error.');
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const removeCover = () => {
+    if (coverImagePath) deleteStorageFile(coverImagePath);
+    setCoverImage(null);
+    setCoverImagePath(null);
+    if (coverRef.current) coverRef.current.value = '';
+  };
+
+  const uploadBlockImage = async (file: File, blockId: string) => {
+    setUploadingBlocks(prev => new Set(prev).add(blockId));
+    setError('');
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data: UploadResult & { error?: string } = await res.json();
+      if (!res.ok || data.error) {
+        setError('Image upload failed: ' + (data.error || 'Unknown error'));
+        return;
+      }
+      updateBlock(blockId, { src: data.url, path: data.path });
+    } catch {
+      setError('Image upload failed — network error.');
+    } finally {
+      setUploadingBlocks(prev => { const s = new Set(prev); s.delete(blockId); return s; });
+    }
+  };
+
+  const removeBlockImage = (block: ContentBlock) => {
+    if (block.path) deleteStorageFile(block.path);
+    updateBlock(block.id, { src: undefined, path: undefined, caption: undefined });
   };
 
   // ── Save ──
@@ -115,9 +205,9 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" fontWeight={900}>{isEditing ? 'Edit Article' : 'New Article'}</Typography>
-          <Typography variant="body2" color="text.secondary">Fill in the details on the right and add content blocks below</Typography>
+          <Typography variant="body2" color="text.secondary">Fill in the details and add content blocks below</Typography>
         </Box>
-        <Stack direction="row" spacing={1.5}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
           <Button variant="outlined" startIcon={<Cancel />} onClick={() => router.push('/admin')} disabled={saving}>Cancel</Button>
           <Button variant="outlined" color="inherit" startIcon={<Save />} onClick={() => handleSave(false)} disabled={saving}>
             {saving ? <CircularProgress size={16} /> : 'Save Draft'}
@@ -128,7 +218,7 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
         </Stack>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
 
       <Grid container spacing={4}>
@@ -156,26 +246,48 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
                 <Box sx={{ position: 'relative' }}>
                   <Box component="img" src={coverImage} sx={{ width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block' }} />
                   <Box sx={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 1 }}>
-                    <Button size="small" variant="contained" component="label" sx={{ bgcolor: 'rgba(0,0,0,0.6)', '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' } }}>
-                      Change
-                      <input type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
+                    <Button
+                      size="small" variant="contained" component="label"
+                      disabled={coverUploading}
+                      sx={{ bgcolor: 'rgba(0,0,0,0.65)', '&:hover': { bgcolor: 'rgba(0,0,0,0.85)' }, minWidth: 80 }}
+                    >
+                      {coverUploading ? <CircularProgress size={14} sx={{ color: 'white' }} /> : 'Change'}
+                      <input type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(f); }} />
                     </Button>
-                    <Button size="small" variant="contained" color="error" sx={{ bgcolor: 'rgba(220,53,69,0.8)' }} onClick={() => setCoverImage(null)}>Remove</Button>
+                    <Button
+                      size="small" variant="contained" color="error"
+                      startIcon={<Close fontSize="small" />}
+                      onClick={removeCover}
+                      sx={{ bgcolor: 'rgba(220,53,69,0.85)', '&:hover': { bgcolor: 'error.main' } }}
+                    >
+                      Remove
+                    </Button>
                   </Box>
+                  {/* Path indicator for debug (small badge) */}
+                  {coverImagePath && (
+                    <Box sx={{ position: 'absolute', bottom: 8, left: 8, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1, px: 1, py: 0.25 }}>
+                      <Typography variant="caption" sx={{ color: '#fff', fontSize: '0.65rem' }}>✓ Stored in Supabase</Typography>
+                    </Box>
+                  )}
                 </Box>
               ) : (
                 <Box
-                  sx={{ p: 5, textAlign: 'center', cursor: 'pointer', bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' }, transition: 'background 0.2s' }}
-                  onClick={() => coverRef.current?.click()}
+                  sx={{ p: 5, textAlign: 'center', cursor: coverUploading ? 'default' : 'pointer', bgcolor: 'action.hover', '&:hover': { bgcolor: coverUploading ? 'action.hover' : 'action.selected' }, transition: 'background 0.2s' }}
+                  onClick={() => !coverUploading && coverRef.current?.click()}
                 >
-                  {uploading ? <CircularProgress size={32} /> : (
+                  {coverUploading ? (
+                    <Stack alignItems="center" spacing={1}>
+                      <CircularProgress size={36} />
+                      <Typography variant="body2" color="text.secondary" fontWeight={600}>Uploading…</Typography>
+                    </Stack>
+                  ) : (
                     <>
                       <CloudUpload sx={{ fontSize: 44, color: 'text.disabled', mb: 1 }} />
                       <Typography variant="body2" color="text.secondary" fontWeight={600}>Click to upload cover image</Typography>
-                      <Typography variant="caption" color="text.disabled">PNG, JPG, WEBP — recommended 1200×630</Typography>
+                      <Typography variant="caption" color="text.disabled">PNG, JPG, WEBP — recommended 1200×630 — max 10 MB</Typography>
                     </>
                   )}
-                  <input ref={coverRef} type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
+                  <input ref={coverRef} type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(f); }} />
                 </Box>
               )}
             </Paper>
@@ -184,96 +296,129 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
             <Typography variant="subtitle1" fontWeight={800} sx={{ mt: 1 }}>Article Content</Typography>
 
             <Stack spacing={2}>
-              {content.map((block, idx) => (
-                <Paper key={block.id} elevation={0} sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 2.5, position: 'relative', '&:hover': { borderColor: 'primary.light' }, transition: 'border-color 0.2s' }}>
-                  {/* Block top bar */}
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                    <Chip label={block.type.toUpperCase()} size="small" sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: 'rgba(67,97,238,0.08)', color: 'primary.main' }} />
-                    <Stack direction="row" spacing={0.5}>
-                      <IconButton size="small" onClick={() => moveBlock(idx, 'up')} disabled={idx === 0}><ArrowUpward fontSize="small" /></IconButton>
-                      <IconButton size="small" onClick={() => moveBlock(idx, 'down')} disabled={idx === content.length - 1}><ArrowDownward fontSize="small" /></IconButton>
-                      <IconButton size="small" color="error" onClick={() => removeBlock(block.id)}><Delete fontSize="small" /></IconButton>
+              {content.map((block, idx) => {
+                const isBlockUploading = uploadingBlocks.has(block.id);
+                return (
+                  <Paper key={block.id} elevation={0} sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 2.5, position: 'relative', '&:hover': { borderColor: 'primary.light' }, transition: 'border-color 0.2s' }}>
+                    {/* Block top bar */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                      <Chip label={block.type.toUpperCase()} size="small" sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: 'rgba(67,97,238,0.08)', color: 'primary.main' }} />
+                      <Stack direction="row" spacing={0.5}>
+                        <IconButton size="small" onClick={() => moveBlock(idx, 'up')} disabled={idx === 0}><ArrowUpward fontSize="small" /></IconButton>
+                        <IconButton size="small" onClick={() => moveBlock(idx, 'down')} disabled={idx === content.length - 1}><ArrowDownward fontSize="small" /></IconButton>
+                        <Tooltip title="Remove block">
+                          <IconButton size="small" color="error" onClick={() => removeBlock(block.id)}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
                     </Stack>
-                  </Stack>
 
-                  {/* Block editors */}
-                  {block.type === 'paragraph' && (
-                    <TextField fullWidth multiline minRows={3} placeholder="Start writing…" variant="standard"
-                      InputProps={{ disableUnderline: true }} value={block.content}
-                      onChange={e => updateBlock(block.id, { content: e.target.value })} />
-                  )}
+                    {/* Block editors */}
+                    {block.type === 'paragraph' && (
+                      <TextField fullWidth multiline minRows={3} placeholder="Start writing…" variant="standard"
+                        InputProps={{ disableUnderline: true }} value={block.content}
+                        onChange={e => updateBlock(block.id, { content: e.target.value })} />
+                    )}
 
-                  {block.type === 'heading' && (
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <Select size="small" value={block.level ?? 2} onChange={e => updateBlock(block.id, { level: e.target.value as any })} sx={{ minWidth: 68 }}>
-                        <MenuItem value={2}>H2</MenuItem><MenuItem value={3}>H3</MenuItem>
-                      </Select>
-                      <TextField fullWidth placeholder="Heading…" variant="standard"
-                        InputProps={{ disableUnderline: true, style: { fontWeight: 800, fontSize: block.level === 2 ? '1.5rem' : '1.2rem' } }}
-                        value={block.content} onChange={e => updateBlock(block.id, { content: e.target.value })} />
-                    </Stack>
-                  )}
+                    {block.type === 'heading' && (
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <Select size="small" value={block.level ?? 2} onChange={e => updateBlock(block.id, { level: e.target.value as any })} sx={{ minWidth: 68 }}>
+                          <MenuItem value={2}>H2</MenuItem><MenuItem value={3}>H3</MenuItem>
+                        </Select>
+                        <TextField fullWidth placeholder="Heading…" variant="standard"
+                          InputProps={{ disableUnderline: true, style: { fontWeight: 800, fontSize: block.level === 2 ? '1.5rem' : '1.2rem' } }}
+                          value={block.content} onChange={e => updateBlock(block.id, { content: e.target.value })} />
+                      </Stack>
+                    )}
 
-                  {block.type === 'image' && (
-                    block.src ? (
-                      <Box>
-                        <Box component="img" src={block.src} sx={{ width: '100%', borderRadius: 2, mb: 1.5 }} />
-                        <TextField fullWidth size="small" placeholder="Image caption (optional)…" variant="outlined"
-                          value={block.caption ?? ''} onChange={e => updateBlock(block.id, { caption: e.target.value })} />
-                      </Box>
-                    ) : (
-                      <Button variant="outlined" fullWidth component="label" startIcon={uploading ? <CircularProgress size={16} /> : <CloudUpload />}
-                        sx={{ py: 3, borderStyle: 'dashed', borderRadius: 2 }}>
-                        Upload Image
-                        <input type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f, block.id); }} />
-                      </Button>
-                    )
-                  )}
-
-                  {block.type === 'video' && (
-                    <Box>
-                      <TextField fullWidth placeholder="Paste YouTube / Vimeo URL…" variant="outlined"
-                        value={block.embedUrl ?? ''} onChange={e => updateBlock(block.id, { embedUrl: e.target.value })}
-                        helperText="Supports YouTube, Vimeo, or direct video URLs" />
-                      {block.embedUrl && (
-                        <Box sx={{ mt: 2, position: 'relative', pt: '56.25%', borderRadius: 2, overflow: 'hidden', bgcolor: '#000' }}>
-                          <Box component="iframe"
-                            src={block.embedUrl.includes('youtube') ? `https://www.youtube.com/embed/${block.embedUrl.split('v=')[1]?.split('&')[0] || block.embedUrl.split('/').pop()}` : block.embedUrl}
-                            sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                            allowFullScreen />
+                    {block.type === 'image' && (
+                      block.src ? (
+                        <Box>
+                          <Box sx={{ position: 'relative' }}>
+                            <Box component="img" src={block.src} sx={{ width: '100%', borderRadius: 2, mb: 1.5, display: 'block' }} />
+                            <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 0.75 }}>
+                              <Button
+                                size="small" variant="contained" component="label"
+                                disabled={isBlockUploading}
+                                sx={{ bgcolor: 'rgba(0,0,0,0.65)', '&:hover': { bgcolor: 'rgba(0,0,0,0.85)' }, fontSize: '0.7rem', py: 0.5 }}
+                              >
+                                {isBlockUploading ? <CircularProgress size={12} sx={{ color: 'white' }} /> : 'Change'}
+                                <input type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadBlockImage(f, block.id); }} />
+                              </Button>
+                              <Button
+                                size="small" variant="contained" color="error"
+                                startIcon={<Close sx={{ fontSize: '0.85rem !important' }} />}
+                                onClick={() => removeBlockImage(block)}
+                                sx={{ bgcolor: 'rgba(220,53,69,0.85)', '&:hover': { bgcolor: 'error.main' }, fontSize: '0.7rem', py: 0.5 }}
+                              >
+                                Delete
+                              </Button>
+                            </Box>
+                            {block.path && (
+                              <Box sx={{ position: 'absolute', bottom: 20, left: 8, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1, px: 1, py: 0.25 }}>
+                                <Typography variant="caption" sx={{ color: '#fff', fontSize: '0.65rem' }}>✓ Stored in Supabase</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                          <TextField fullWidth size="small" placeholder="Image caption (optional)…" variant="outlined"
+                            value={block.caption ?? ''} onChange={e => updateBlock(block.id, { caption: e.target.value })} />
                         </Box>
-                      )}
-                    </Box>
-                  )}
+                      ) : (
+                        <Button variant="outlined" fullWidth component="label" disabled={isBlockUploading}
+                          startIcon={isBlockUploading ? <CircularProgress size={16} /> : <CloudUpload />}
+                          sx={{ py: 3, borderStyle: 'dashed', borderRadius: 2 }}>
+                          {isBlockUploading ? 'Uploading…' : 'Upload Image'}
+                          <input type="file" hidden accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) uploadBlockImage(f, block.id); }} />
+                        </Button>
+                      )
+                    )}
 
-                  {block.type === 'quote' && (
-                    <Stack spacing={1.5}>
-                      <TextField fullWidth multiline rows={2} placeholder="Quote text…" variant="outlined"
-                        value={block.content ?? ''} onChange={e => updateBlock(block.id, { content: e.target.value })}
-                        sx={{ fontStyle: 'italic' }} />
-                      <TextField fullWidth size="small" placeholder="— Quote author (optional)" variant="outlined"
-                        value={block.quoteAuthor ?? ''} onChange={e => updateBlock(block.id, { quoteAuthor: e.target.value })} />
-                    </Stack>
-                  )}
+                    {block.type === 'video' && (
+                      <Box>
+                        <TextField fullWidth placeholder="Paste YouTube / Vimeo URL…" variant="outlined"
+                          value={block.embedUrl ?? ''} onChange={e => updateBlock(block.id, { embedUrl: e.target.value })}
+                          helperText="Supports YouTube, Vimeo, or direct video URLs" />
+                        {block.embedUrl && (
+                          <Box sx={{ mt: 2, position: 'relative', pt: '56.25%', borderRadius: 2, overflow: 'hidden', bgcolor: '#000' }}>
+                            <Box component="iframe"
+                              src={block.embedUrl.includes('youtube') ? `https://www.youtube.com/embed/${block.embedUrl.split('v=')[1]?.split('&')[0] || block.embedUrl.split('/').pop()}` : block.embedUrl}
+                              sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                              allowFullScreen />
+                          </Box>
+                        )}
+                      </Box>
+                    )}
 
-                  {block.type === 'code' && (
-                    <Stack spacing={1.5}>
-                      <Select size="small" value={block.language || 'typescript'} onChange={e => updateBlock(block.id, { language: e.target.value })} sx={{ width: 140 }}>
-                        {['typescript', 'javascript', 'jsx', 'tsx', 'python', 'css', 'html', 'bash', 'json', 'sql'].map(l => (
-                          <MenuItem key={l} value={l}>{l}</MenuItem>
-                        ))}
-                      </Select>
-                      <TextField fullWidth multiline minRows={5} placeholder="Paste code here…"
-                        value={block.content ?? ''} onChange={e => updateBlock(block.id, { content: e.target.value })}
-                        sx={{ '& textarea': { fontFamily: 'JetBrains Mono, Consolas, monospace', fontSize: '0.85rem' } }} />
-                    </Stack>
-                  )}
+                    {block.type === 'quote' && (
+                      <Stack spacing={1.5}>
+                        <TextField fullWidth multiline rows={2} placeholder="Quote text…" variant="outlined"
+                          value={block.content ?? ''} onChange={e => updateBlock(block.id, { content: e.target.value })}
+                          sx={{ fontStyle: 'italic' }} />
+                        <TextField fullWidth size="small" placeholder="— Quote author (optional)" variant="outlined"
+                          value={block.quoteAuthor ?? ''} onChange={e => updateBlock(block.id, { quoteAuthor: e.target.value })} />
+                      </Stack>
+                    )}
 
-                  {block.type === 'divider' && (
-                    <Box sx={{ py: 1 }}><Divider /></Box>
-                  )}
-                </Paper>
-              ))}
+                    {block.type === 'code' && (
+                      <Stack spacing={1.5}>
+                        <Select size="small" value={block.language || 'typescript'} onChange={e => updateBlock(block.id, { language: e.target.value })} sx={{ width: 140 }}>
+                          {['typescript', 'javascript', 'jsx', 'tsx', 'python', 'css', 'html', 'bash', 'json', 'sql'].map(l => (
+                            <MenuItem key={l} value={l}>{l}</MenuItem>
+                          ))}
+                        </Select>
+                        <TextField fullWidth multiline minRows={5} placeholder="Paste code here…"
+                          value={block.content ?? ''} onChange={e => updateBlock(block.id, { content: e.target.value })}
+                          sx={{ '& textarea': { fontFamily: 'JetBrains Mono, Consolas, monospace', fontSize: '0.85rem' } }} />
+                      </Stack>
+                    )}
+
+                    {block.type === 'divider' && (
+                      <Box sx={{ py: 1 }}><Divider /></Box>
+                    )}
+                  </Paper>
+                );
+              })}
 
               {/* Add Block Toolbar */}
               <Paper elevation={0} sx={{ p: 2, border: '1px dashed', borderColor: 'divider', borderRadius: 2.5, bgcolor: 'action.hover' }}>
@@ -305,9 +450,9 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
 
         {/* ── RIGHT: Metadata Sidebar ── */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Stack spacing={3} sx={{ position: 'sticky', top: 88 }}>
+          <Stack spacing={3} sx={{ position: { md: 'sticky' }, top: { md: 88 } }}>
             <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
-              <Typography variant="subtitle2" fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing="0.07em" mb={2.5}>
+              <Typography variant="subtitle2" fontWeight={800} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.07em' }} mb={2.5}>
                 Publish Settings
               </Typography>
 
@@ -345,7 +490,7 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
 
             {/* Author */}
             <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
-              <Typography variant="subtitle2" fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing="0.07em" mb={2.5}>
+              <Typography variant="subtitle2" fontWeight={800} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.07em' }} mb={2.5}>
                 Author
               </Typography>
               <TextField fullWidth size="small" label="Full Name" value={author} onChange={e => setAuthor(e.target.value)} sx={{ mb: 2 }} />

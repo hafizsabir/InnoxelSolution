@@ -169,26 +169,15 @@ export default function Navbar() {
                 </IconButton>
               </Tooltip>
             ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
-                <Button
-                  component={Link}
-                  href="/login"
-                  variant="outlined"
-                  size="small"
-                  sx={{ px: 2.5, fontWeight: 600 }}
-                >
-                  Login
-                </Button>
-                <Button
-                  component={Link}
-                  href="/signup"
-                  variant="contained"
-                  size="small"
-                  sx={{ px: 2.5, fontWeight: 600 }}
-                >
-                  Sign Up
-                </Button>
-              </Box>
+              <Button
+                component={Link}
+                href="/login"
+                variant="contained"
+                size="small"
+                sx={{ px: 2.5, fontWeight: 600, ml: 1 }}
+              >
+                Login
+              </Button>
             )}
           </Box>
 
@@ -215,12 +204,14 @@ export default function Navbar() {
         anchor="right"
         open={mobileOpen}
         onClose={handleDrawerToggle}
-        PaperProps={{
-          sx: {
-            width: 280,
-            bgcolor: 'background.paper',
-            px: 2,
-            py: 3,
+        slotProps={{
+          paper: {
+            sx: {
+              width: 280,
+              bgcolor: 'background.paper',
+              px: 2,
+              py: 3,
+            },
           },
         }}
       >
@@ -256,7 +247,7 @@ export default function Navbar() {
               >
                 <ListItemText
                   primary={link.label}
-                  primaryTypographyProps={{ fontWeight: 600 }}
+                  slotProps={{ primary: { fontWeight: 600 } }}
                 />
               </ListItemButton>
             </ListItem>
@@ -275,14 +266,9 @@ export default function Navbar() {
               </Button>
             </>
           ) : (
-            <>
-              <Button variant="outlined" fullWidth component={Link} href="/login" onClick={handleDrawerToggle}>
-                Login
-              </Button>
-              <Button variant="contained" fullWidth component={Link} href="/signup" onClick={handleDrawerToggle}>
-                Sign Up
-              </Button>
-            </>
+            <Button variant="contained" fullWidth component={Link} href="/login" onClick={handleDrawerToggle}>
+              Login
+            </Button>
           )}
         </Box>
       </Drawer>

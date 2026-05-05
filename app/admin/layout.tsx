@@ -1,8 +1,6 @@
 // @ts-nocheck
-import { Box } from '@mui/material';
 import { createClient } from '@/lib/supabase/server';
-import AdminHeader from '@/components/admin/AdminHeader';
-import AdminSidebar from '@/components/admin/AdminSidebar';
+import AdminLayoutClient from './AdminLayoutClient';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -25,22 +23,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AdminHeader user={userProfile} pageTitle="Admin Panel" />
-      <Box sx={{ display: 'flex' }}>
-        <AdminSidebar />
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: { xs: 2, md: 4 },
-            minHeight: 'calc(100vh - 64px)',
-            bgcolor: 'background.default',
-          }}
-        >
-          {children}
-        </Box>
-      </Box>
-    </Box>
+    <AdminLayoutClient user={userProfile}>
+      {children}
+    </AdminLayoutClient>
   );
 }

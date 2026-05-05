@@ -59,7 +59,7 @@ export default function TechBlogPage() {
             }}
           >
             <RssFeed sx={{ fontSize: 15, color: 'primary.main' }} />
-            <Typography variant="caption" color="primary.main" fontWeight={700} letterSpacing="0.08em" textTransform="uppercase">
+            <Typography variant="caption" color="primary.main" fontWeight={700} sx={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Engineering Blog
             </Typography>
           </Box>

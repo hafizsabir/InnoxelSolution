@@ -4,7 +4,7 @@
 import {
   AppBar, Toolbar, Typography, Box, Avatar, Chip, IconButton, Tooltip,
 } from '@mui/material';
-import { FlashOn, LogoutOutlined, LightMode, DarkMode } from '@mui/icons-material';
+import { FlashOn, LogoutOutlined, LightMode, DarkMode, Menu as MenuIcon } from '@mui/icons-material';
 import Link from 'next/link';
 import { useColorMode } from '@/theme/ThemeRegistry';
 import { useRouter } from 'next/navigation';
@@ -12,9 +12,10 @@ import { useRouter } from 'next/navigation';
 interface AdminHeaderProps {
   user: { email: string; name: string; role: string } | null;
   pageTitle?: string;
+  onMobileMenuToggle?: () => void;
 }
 
-export default function AdminHeader({ user, pageTitle = 'Admin' }: AdminHeaderProps) {
+export default function AdminHeader({ user, pageTitle = 'Admin', onMobileMenuToggle }: AdminHeaderProps) {
   const { toggleColorMode, mode } = useColorMode();
   const router = useRouter();
 
@@ -36,6 +37,19 @@ export default function AdminHeader({ user, pageTitle = 'Admin' }: AdminHeaderPr
       }}
     >
       <Toolbar sx={{ px: { xs: 2, md: 3 } }}>
+        {/* Mobile menu button */}
+        {onMobileMenuToggle && (
+          <IconButton
+            onClick={onMobileMenuToggle}
+            color="inherit"
+            size="small"
+            sx={{ mr: 1, display: { md: 'none' }, color: 'text.primary' }}
+            aria-label="Open admin menu"
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
+
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Box sx={{ width: 32, height: 32, borderRadius: 2, background: 'linear-gradient(135deg, #4361ee, #7209b7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <FlashOn sx={{ color: 'white', fontSize: 18 }} />
@@ -45,7 +59,7 @@ export default function AdminHeader({ user, pageTitle = 'Admin' }: AdminHeaderPr
           </Typography>
         </Link>
 
-        <Box sx={{ mx: 2, height: 20, width: 1, bgcolor: 'divider' }} />
+        <Box sx={{ mx: 2, height: 20, width: 1, bgcolor: 'divider', display: { xs: 'none', sm: 'block' } }} />
 
         <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ flexGrow: 1 }}>
           {pageTitle}
@@ -66,7 +80,7 @@ export default function AdminHeader({ user, pageTitle = 'Admin' }: AdminHeaderPr
                 {(user.name || user.email).slice(0, 2).toUpperCase()}
               </Avatar>
               <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                <Typography variant="caption" fontWeight={700} color="text.primary" display="block" lineHeight={1.2}>
+                <Typography variant="caption" fontWeight={700} color="text.primary" display="block" sx={{ lineHeight: 1.2 }}>
                   {user.name || user.email}
                 </Typography>
                 <Chip label={user.role} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(67,97,238,0.1)', color: 'primary.main' }} />

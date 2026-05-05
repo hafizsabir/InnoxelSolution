@@ -94,7 +94,7 @@ export default function ServiceDetailCard({ service, index }: ServiceDetailCardP
                         </ListItemIcon>
                         <ListItemText
                           primary={feature}
-                          primaryTypographyProps={{ variant: 'body2', fontWeight: 500, color: 'text.primary' }}
+                          slotProps={{ primary: { variant: 'body2', fontWeight: 500, color: 'text.primary' } }}
                         />
                       </ListItem>
                     </Grid>
