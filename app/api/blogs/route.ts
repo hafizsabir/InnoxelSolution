@@ -2,24 +2,86 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { slugify, calcReadTime, formatDate } from '@/lib/blogs';
 
-// GET /api/blogs          → published posts
-// GET /api/blogs?all=1    → all posts (admin)
+/**
+ * GET /api/blogs
+ *
+ * Query params
+ * ────────────
+ * all=1          include drafts (admin)
+ * search=foo     filter by title (case-insensitive ilike)
+ * category=X     filter by category  (omit or "All" → no filter)
+ * status=X       filter by status    (omit or "all"  → no filter)
+ * page=1         1-based page number (enables paginated response)
+ * limit=10       items per page (default 10, max 50)
+ *
+ * Response (when page param present)
+ * ────────────────────────────────────
+ *   { data: BlogPost[], total: number, page: number, pageSize: number }
+ *
+ * Response (no page param – backwards compat)
+ *   BlogPost[]
+ */
 export async function GET(req: NextRequest) {
-  const all = req.nextUrl.searchParams.get('all') === '1';
+  const sp = req.nextUrl.searchParams;
+  const all = sp.get('all') === '1';
+  const search = sp.get('search')?.trim() ?? '';
+  const category = sp.get('category') ?? '';
+  const statusParam = sp.get('status') ?? '';
+  const pageParam = sp.get('page');
+  const limit = Math.min(Number(sp.get('limit') ?? 10), 50);
+  const page = Math.max(1, Number(pageParam ?? 1));
+
   const supabase = await createClient();
 
+  // ── Build base query ──────────────────────────────────────────────────────
   let query = supabase
     .from('blogs')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('created_at', { ascending: false });
 
+  // Published-only guard (public route)
   if (!all) {
     query = query.eq('status', 'published');
   }
 
-  const { data, error } = await query;
+  // Status filter (admin only – only respected when all=1)
+  if (all && statusParam && statusParam !== 'all') {
+    query = query.eq('status', statusParam);
+  }
+
+  // Category filter
+  if (category && category !== 'All') {
+    query = query.eq('category', category);
+  }
+
+  // Title search (case-insensitive)
+  if (search) {
+    query = query.ilike('title', `%${search}%`);
+  }
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  const isPaginated = pageParam !== null;
+  if (isPaginated) {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Paginated response
+  if (isPaginated) {
+    return NextResponse.json({
+      data: data ?? [],
+      total: count ?? 0,
+      page,
+      pageSize: limit,
+    });
+  }
+
+  // Legacy flat array (backward compat)
   return NextResponse.json(data ?? []);
 }
 

@@ -36,7 +36,7 @@ export default function BlogCard({ post, index, featured = false }: BlogCardProp
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
-          borderRadius: 4,
+          borderRadius: 2,
           overflow: 'hidden',
           border: '1px solid',
           borderColor: 'divider',

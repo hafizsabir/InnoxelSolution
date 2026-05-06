@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Grid, Card, Button, Chip, Stack,
   IconButton, Tabs, Tab, Dialog, DialogTitle, DialogContent,
@@ -11,13 +11,12 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, VisibilityOff,
-  TrendingUp, Article, Star, Search, FilterList,
+  Article, Star, Search,
 } from '@mui/icons-material';
 import Link from 'next/link';
-import type { BlogPost } from '@/types/blog';
 
 const CATEGORIES = ['All', 'Artificial Intelligence', 'Architecture', 'Mobile Dev', 'Cloud Native', 'Cybersecurity', 'Web Development'];
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 6;
 
 type SupabaseBlog = {
   id: string; slug: string; title: string; excerpt: string;
@@ -27,28 +26,74 @@ type SupabaseBlog = {
 
 export default function AdminDashboard() {
   const [posts, setPosts] = useState<SupabaseBlog[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Filters
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
+
+  // Delete state
   const [deleteSlug, setDeleteSlug] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchPosts = async () => {
+  // Stats (from a separate total-count fetch)
+  const [stats, setStats] = useState({ total: 0, published: 0, drafts: 0, featured: 0 });
+
+  // ── Debounce search input ─────────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Reset page on filter change
+  useEffect(() => { setPage(1); }, [statusFilter, categoryFilter, debouncedSearch]);
+
+  // ── Fetch stats (all posts, no pagination) ────────────────────────────────
+  const fetchStats = useCallback(async () => {
+    const res = await fetch('/api/blogs?all=1');
+    const data = await res.json();
+    const arr: SupabaseBlog[] = Array.isArray(data) ? data : [];
+    setStats({
+      total: arr.length,
+      published: arr.filter(p => p.status === 'published').length,
+      drafts: arr.filter(p => p.status === 'draft').length,
+      featured: arr.filter(p => p.featured).length,
+    });
+  }, []);
+
+  // ── Fetch paginated/filtered posts ────────────────────────────────────────
+  const fetchPosts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/blogs?all=1');
-      const data = await res.json();
-      setPosts(Array.isArray(data) ? data : []);
-    } catch { } finally { setLoading(false); }
-  };
+      const params = new URLSearchParams({
+        all: '1',
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (categoryFilter !== 'All') params.set('category', categoryFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
 
-  useEffect(() => { fetchPosts(); }, []);
+      const res = await fetch(`/api/blogs?${params.toString()}`);
+      const json = await res.json();
+      setPosts(Array.isArray(json) ? json : (json.data ?? []));
+      setTotal(json.total ?? 0);
+    } catch {
+      setPosts([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, debouncedSearch, categoryFilter, statusFilter]);
 
-  // Reset to page 1 whenever filters change
-  useEffect(() => { setPage(1); }, [statusFilter, categoryFilter, searchQuery]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
+  // ── Actions ───────────────────────────────────────────────────────────────
   const handleToggle = async (slug: string, current: string) => {
     await fetch(`/api/blogs/${slug}`, {
       method: 'PUT',
@@ -56,6 +101,7 @@ export default function AdminDashboard() {
       body: JSON.stringify({ status: current === 'published' ? 'draft' : 'published' }),
     });
     fetchPosts();
+    fetchStats();
   };
 
   const handleDelete = async () => {
@@ -65,42 +111,15 @@ export default function AdminDashboard() {
       await fetch(`/api/blogs/${deleteSlug}`, { method: 'DELETE' });
       setDeleteSlug(null);
       fetchPosts();
+      fetchStats();
     } finally {
       setDeleting(false);
     }
   };
 
-  // ── Derived stats ──
-  const published = posts.filter(p => p.status === 'published').length;
-  const drafts = posts.length - published;
-  const featuredCount = posts.filter(p => p.featured).length;
-
-  // ── Filtered + searched + paginated results ──
-  const filtered = useMemo(() => {
-    return posts.filter(p => {
-      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
-      const matchCategory = categoryFilter === 'All' || p.category === categoryFilter;
-      const matchSearch = !searchQuery.trim() ||
-        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchStatus && matchCategory && matchSearch;
-    });
-  }, [posts, statusFilter, categoryFilter, searchQuery]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const showingFrom = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const showingTo = Math.min(page * PAGE_SIZE, filtered.length);
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', pt: 12 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const showingFrom = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, total);
 
   return (
     <Box>
@@ -122,10 +141,10 @@ export default function AdminDashboard() {
       {/* ── Stats ── */}
       <Grid container spacing={3} sx={{ mb: 5 }}>
         {[
-          { label: 'Total Articles', value: posts.length, icon: <Article />, color: '#4361ee' },
-          { label: 'Published', value: published, icon: <Visibility />, color: '#06d6a0' },
-          { label: 'Drafts', value: drafts, icon: <VisibilityOff />, color: '#f72585' },
-          { label: 'Featured', value: featuredCount, icon: <Star />, color: '#ffd166' },
+          { label: 'Total Articles', value: stats.total, icon: <Article />, color: '#4361ee' },
+          { label: 'Published', value: stats.published, icon: <Visibility />, color: '#06d6a0' },
+          { label: 'Drafts', value: stats.drafts, icon: <VisibilityOff />, color: '#f72585' },
+          { label: 'Featured', value: stats.featured, icon: <Star />, color: '#ffd166' },
         ].map((stat) => (
           <Grid size={{ xs: 6, md: 3 }} key={stat.label}>
             <Card sx={{ p: { xs: 2, md: 3 }, border: '1px solid', borderColor: 'divider', boxShadow: 'none', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -144,9 +163,9 @@ export default function AdminDashboard() {
       {/* ── Status Tabs ── */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={statusFilter} onChange={(_, v) => setStatusFilter(v)} variant="scrollable" scrollButtons="auto">
-          <Tab label={`All (${posts.length})`} value="all" sx={{ fontWeight: 600 }} />
-          <Tab label={`Published (${published})`} value="published" sx={{ fontWeight: 600 }} />
-          <Tab label={`Drafts (${drafts})`} value="draft" sx={{ fontWeight: 600 }} />
+          <Tab label={`All (${stats.total})`} value="all" sx={{ fontWeight: 600 }} />
+          <Tab label={`Published (${stats.published})`} value="published" sx={{ fontWeight: 600 }} />
+          <Tab label={`Drafts (${stats.drafts})`} value="draft" sx={{ fontWeight: 600 }} />
         </Tabs>
       </Box>
 
@@ -155,7 +174,7 @@ export default function AdminDashboard() {
         {/* Search */}
         <TextField
           size="small"
-          placeholder="Search articles…"
+          placeholder="Search by title…"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           sx={{ flex: 1, maxWidth: { sm: 340 } }}
@@ -178,38 +197,48 @@ export default function AdminDashboard() {
 
         {/* Results count */}
         <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 'auto' }, flexShrink: 0 }}>
-          {filtered.length === 0
+          {total === 0
             ? 'No articles found'
-            : `Showing ${showingFrom}–${showingTo} of ${filtered.length}`}
+            : `Showing ${showingFrom}–${showingTo} of ${total}`}
         </Typography>
       </Stack>
 
       {/* ── Posts Grid ── */}
-      {paginated.length === 0 ? (
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+          <CircularProgress />
+        </Box>
+      ) : posts.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 10, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
           <Article sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
           <Typography color="text.secondary" fontWeight={600} mb={1}>
-            {posts.length === 0 ? 'No articles yet' : 'No articles match your filters'}
+            {total === 0 && !debouncedSearch && statusFilter === 'all' && categoryFilter === 'All'
+              ? 'No articles yet'
+              : 'No articles match your filters'}
           </Typography>
-          {posts.length === 0 && (
+          {!debouncedSearch && statusFilter === 'all' && categoryFilter === 'All' && stats.total === 0 && (
             <Button variant="contained" component={Link} href="/admin/new" sx={{ mt: 1 }}>
               Create your first article
             </Button>
           )}
-          {posts.length > 0 && (
-            <Button variant="outlined" size="small" sx={{ mt: 1 }} onClick={() => { setStatusFilter('all'); setCategoryFilter('All'); setSearchQuery(''); }}>
+          {(debouncedSearch || statusFilter !== 'all' || categoryFilter !== 'All') && (
+            <Button variant="outlined" size="small" sx={{ mt: 1 }} onClick={() => {
+              setStatusFilter('all');
+              setCategoryFilter('All');
+              setSearchQuery('');
+            }}>
               Clear filters
             </Button>
           )}
         </Box>
       ) : (
         <Grid container spacing={3}>
-          {paginated.map((post) => (
+          {posts.map((post) => (
             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={post.id}>
               <Card sx={{
                 height: '100%', display: 'flex', flexDirection: 'column',
                 border: '1px solid', borderColor: 'divider', boxShadow: 'none',
-                borderRadius: 3, overflow: 'hidden', transition: 'border-color 0.2s, transform 0.2s',
+                borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s, transform 0.2s',
                 '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' },
               }}>
                 {/* Cover */}
@@ -218,7 +247,6 @@ export default function AdminDashboard() {
                     <Box component="img" src={post.cover_image} alt={post.title}
                       sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                   )}
-                  {/* Overlay so badges are readable */}
                   <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 60%)' }} />
                   <Chip
                     label={post.status}
@@ -275,7 +303,7 @@ export default function AdminDashboard() {
       )}
 
       {/* ── Pagination ── */}
-      {pageCount > 1 && (
+      {!loading && pageCount > 1 && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}>
           <Pagination
             count={pageCount}
