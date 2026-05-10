@@ -47,4 +47,5 @@ export interface BlogPost {
   content: ContentBlock[];
   createdAt: string;
   updatedAt: string;
+  view_count?: number;
 }

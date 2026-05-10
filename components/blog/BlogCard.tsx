@@ -2,7 +2,7 @@
 'use client';
 
 import { Box, Chip, Typography, Avatar, Stack } from '@mui/material';
-import { AccessTime, CalendarToday } from '@mui/icons-material';
+import { AccessTime, CalendarToday, Visibility } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -21,6 +21,9 @@ export default function BlogCard({ post, index, featured = false }: BlogCardProp
   const authorGradient = post.author_gradient || post.authorGradient || 'linear-gradient(135deg, #4361ee, #7209b7)';
   const authorInitials = post.author_initials || post.authorInitials || (post.author || 'A').slice(0, 2).toUpperCase();
   const authorRole = post.author_role || post.authorRole || '';
+  const viewCount: number = post.view_count ?? 0;
+  const formatViews = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
   return (
     <motion.div
@@ -163,7 +166,7 @@ export default function BlogCard({ post, index, featured = false }: BlogCardProp
         {/* ── Content ── */}
         <Box sx={{ p: { xs: 2.5, md: 3 }, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
           {/* Meta row */}
-          <Stack direction="row" sx={{ gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
+          <Stack direction="row" sx={{ gap: 1.5, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <CalendarToday sx={{ fontSize: 13, color: 'text.disabled' }} />
               <Typography variant="caption" color="text.disabled" fontWeight={500}>
@@ -178,6 +181,33 @@ export default function BlogCard({ post, index, featured = false }: BlogCardProp
                 </Typography>
               </Box>
             )}
+            {/* View count pill */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.4,
+                px: 1,
+                py: 0.25,
+                borderRadius: 99,
+                bgcolor: (theme) =>
+                  theme.palette.mode === 'dark'
+                    ? 'rgba(67,97,238,0.15)'
+                    : 'rgba(67,97,238,0.08)',
+                border: '1px solid rgba(67,97,238,0.18)',
+                ml: 'auto',
+              }}
+            >
+              <Visibility sx={{ fontSize: 11, color: 'primary.main' }} />
+              <Typography
+                variant="caption"
+                fontWeight={700}
+                color="primary.main"
+                sx={{ fontSize: '0.67rem', lineHeight: 1 }}
+              >
+                {formatViews(viewCount)}
+              </Typography>
+            </Box>
           </Stack>
 
           {/* Title */}

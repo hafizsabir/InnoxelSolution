@@ -29,12 +29,21 @@ export const metadata: Metadata = {
     'custom software',
   ],
   authors: [{ name: 'Innoxel Solutions' }],
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/icon.png',
+    shortcut: '/icon.png',
+  },
   openGraph: {
     type: 'website',
     siteName: 'Innoxel Solutions',
     title: 'Innoxel Solutions — Premium Software Development Company',
     description:
       'We build world-class web apps, mobile apps, AI, and cloud solutions for ambitious businesses.',
+    images: [{ url: '/icon.png', width: 512, height: 512, alt: 'Innoxel Solutions Logo' }],
   },
 };
 

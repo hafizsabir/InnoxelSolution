@@ -16,7 +16,7 @@ export default function HomePage() {
       <HeroSection />
       <ServicesOverview />
       <WhyChooseUs />
-      <Testimonials />
+      {/* <Testimonials /> */}
     </>
   );
 }

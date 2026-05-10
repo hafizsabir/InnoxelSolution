@@ -36,8 +36,8 @@ const socials = [
 
 const contactItems = [
   { icon: <Email fontSize="small" />, text: 'hello@innoxelsolutions.com' },
-  { icon: <Phone fontSize="small" />, text: '+1 (800) 123-4567' },
-  { icon: <LocationOn fontSize="small" />, text: '42 Innovation Drive, Tech Valley, CA 94025' },
+  { icon: <Phone fontSize="small" />, text: '+966 57 060 0751' },
+  { icon: <LocationOn fontSize="small" />, text: 'Burayda Al Qasim, Saudi Arabia' },
 ];
 
 export default function Footer() {

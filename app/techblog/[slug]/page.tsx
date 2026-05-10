@@ -1,10 +1,11 @@
 // @ts-nocheck
-import { Container, Box, Typography, Avatar, Stack, Chip, Divider, Button } from '@mui/material';
-import { ArrowBack, CalendarToday, AccessTime, LocalOffer } from '@mui/icons-material';
+import { Container, Box, Typography, Avatar, Stack, Chip, Button } from '@mui/material';
+import { ArrowBack, CalendarToday, AccessTime, LocalOffer, Visibility } from '@mui/icons-material';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import BlogPostRenderer from '@/components/blog/BlogPostRenderer';
+import ViewTracker from '@/components/blog/ViewTracker';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -34,8 +35,14 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const coverGradient = post.cover_gradient || 'linear-gradient(135deg, #4361ee 0%, #7209b7 100%)';
   const authorGradient = post.author_gradient || 'linear-gradient(135deg, #4361ee, #7209b7)';
 
+  // Format view count: 1200 → "1.2k"
+  const formatViews = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+
   return (
     <Box sx={{ minHeight: '100vh' }}>
+      {/* Fires PATCH /api/blogs/[slug]/views on first client mount */}
+      <ViewTracker slug={post.slug} />
       {/* ── Hero / Cover ── */}
       <Box
         sx={{
@@ -174,7 +181,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               </Box>
             </Box>
 
-            {/* Date + read time */}
+            {/* Date + read time + views */}
             <Stack direction="row" spacing={3} alignItems="center" flexWrap="wrap" sx={{ gap: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                 <CalendarToday sx={{ fontSize: 16, color: 'text.disabled' }} />
@@ -183,6 +190,26 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                 <AccessTime sx={{ fontSize: 16, color: 'text.disabled' }} />
                 <Typography variant="body2" color="text.secondary">{post.read_time}</Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  px: 1.25,
+                  py: 0.4,
+                  borderRadius: 99,
+                  bgcolor: (theme) =>
+                    theme.palette.mode === 'dark'
+                      ? 'rgba(67,97,238,0.15)'
+                      : 'rgba(67,97,238,0.08)',
+                  border: '1px solid rgba(67,97,238,0.2)',
+                }}
+              >
+                <Visibility sx={{ fontSize: 15, color: 'primary.main' }} />
+                <Typography variant="body2" fontWeight={600} color="primary.main">
+                  {formatViews(post.view_count ?? 0)} {(post.view_count ?? 0) === 1 ? 'view' : 'views'}
+                </Typography>
               </Box>
             </Stack>
           </Stack>

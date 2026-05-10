@@ -80,7 +80,7 @@ export default function ServiceCard({
             {title}
           </Typography>
 
-          <Typography variant="body2" color="text.secondary" lineHeight={1.75}>
+          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.75 }}>
             {description}
           </Typography>
         </CardContent>

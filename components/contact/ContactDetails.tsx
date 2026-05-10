@@ -5,17 +5,17 @@ import { Email, Phone, LocationOn, AccessTime } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
 const details = [
-  {
-    icon: <Email />, label: 'Email Us',
-    value: 'hello@innoxelsolutions.com', sub: 'We respond within 2-4 hours', color: '#4361ee',
-  },
+  // {
+  //   icon: <Email />, label: 'Email Us',
+  //   value: 'hello@innoxelsolutions.com', sub: 'We respond within 2-4 hours', color: '#4361ee',
+  // },
   {
     icon: <Phone />, label: 'Call Us',
-    value: '+1 (800) 123-4567', sub: 'Mon–Fri, 9am–6pm PST', color: '#7209b7',
+    value: '+966 57 060 0751', sub: 'Mon–Fri, 9am–6pm PST', color: '#7209b7',
   },
   {
     icon: <LocationOn />, label: 'Visit Us',
-    value: '42 Innovation Drive', sub: 'Tech Valley, CA 94025, USA', color: '#f72585',
+    value: 'Buraydah al-Qasim', sub: 'Saudi Arabia', color: '#f72585',
   },
   {
     icon: <AccessTime />, label: 'Business Hours',
