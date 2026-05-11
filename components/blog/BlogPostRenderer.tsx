@@ -1,4 +1,6 @@
 // @ts-nocheck
+'use client';
+
 import { Box, Typography, Divider, Paper } from '@mui/material';
 import type { ContentBlock } from '@/types/blog';
 

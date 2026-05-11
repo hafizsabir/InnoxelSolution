@@ -138,12 +138,14 @@ export default function TechBlogPage() {
               mx: 'auto',
               '& .MuiOutlinedInput-root': { borderRadius: 3 },
             }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search sx={{ fontSize: 18, color: 'text.disabled' }} />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ fontSize: 18, color: 'text.disabled' }} />
+                  </InputAdornment>
+                ),
+              },
             }}
           />
           {total > 0 && (
