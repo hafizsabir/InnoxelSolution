@@ -101,7 +101,7 @@ export default function TranslatorWidget() {
       ':1.container'
     ) as HTMLIFrameElement | null;
     // Standard Google Translate restore mechanism
-    const bar = document.querySelector<HTMLElement>('.goog-te-banner-frame');
+    const bar = document.querySelector<HTMLIFrameElement>('.goog-te-banner-frame');
     if (bar) {
       const doc = bar.contentDocument || bar.contentWindow?.document;
       const btn = doc?.querySelector<HTMLElement>('#\\:1\\.restore');
@@ -157,7 +157,7 @@ export default function TranslatorWidget() {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Language sx={{ color: '#fff', fontSize: 18 }} />
-                <Typography variant="subtitle2" fontWeight={700} color="#fff">
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#fff' }}>
                   Translate Article
                 </Typography>
               </Box>
@@ -174,9 +174,7 @@ export default function TranslatorWidget() {
             <Box sx={{ p: 2 }}>
               <Typography
                 variant="caption"
-                color="text.disabled"
-                fontWeight={700}
-                sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1.5 }}
+                sx={{ color: 'text.disabled', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1.5 }}
               >
                 Quick select
               </Typography>
@@ -216,9 +214,7 @@ export default function TranslatorWidget() {
               >
                 <Typography
                   variant="caption"
-                  color="text.disabled"
-                  fontWeight={700}
-                  sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1 }}
+                  sx={{ color: 'text.disabled', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1 }}
                 >
                   All languages
                 </Typography>
@@ -293,8 +289,7 @@ export default function TranslatorWidget() {
 
               <Typography
                 variant="caption"
-                color="text.disabled"
-                sx={{ display: 'block', mt: 1.5, textAlign: 'center', fontSize: '0.7rem' }}
+                sx={{ color: 'text.disabled', display: 'block', mt: 1.5, textAlign: 'center', fontSize: '0.7rem' }}
               >
                 Powered by Google Translate
               </Typography>
