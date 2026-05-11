@@ -26,7 +26,7 @@ export default function CompanyIntro() {
       }}
     >
       <Container maxWidth="lg">
-        <Grid container spacing={8} alignItems="center">
+        <Grid container spacing={8} sx={{ alignItems: 'center' }}>
           <Grid size={{ xs: 12, md: 6 }}>
             <motion.div
               initial={{ opacity: 0, x: -40 }}

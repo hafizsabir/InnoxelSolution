@@ -425,7 +425,7 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
                 <Typography variant="caption" fontWeight={700} color="text.secondary" display="block" textAlign="center" mb={1.5}>
                   + ADD CONTENT BLOCK
                 </Typography>
-                <Stack direction="row" flexWrap="wrap" justifyContent="center" sx={{ gap: 1 }}>
+                <Stack direction="row" sx={{ flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}>
                   {([
                     { type: 'paragraph', icon: <TextFields />, label: 'Paragraph' },
                     { type: 'heading', icon: <Title />, label: 'Heading' },
@@ -476,7 +476,7 @@ export default function BlogEditor({ initialData, isEditing = false }: Props) {
                 }}
                 sx={{ mt: 1, mb: 1.5 }}
               />
-              <Stack direction="row" flexWrap="wrap" sx={{ gap: 0.75, mb: 2.5 }}>
+              <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mb: 2.5 }}>
                 {tags.map(tag => (
                   <Chip key={tag} label={tag} size="small" onDelete={() => setTags(prev => prev.filter(t => t !== tag))} />
                 ))}

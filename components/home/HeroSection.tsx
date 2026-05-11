@@ -3,13 +3,13 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Box, Container, Grid, Typography, Button, Stack, Chip } from '@mui/material';
-import { ArrowForward, PlayCircleOutlined, CheckCircle } from '@mui/icons-material';
+import { ArrowForward, PlayCircleOutlined, CheckCircle, FlashOn } from '@mui/icons-material';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import Link from 'next/link';
 
 /* ─── Tech stack items for the 3-D scene ─── */
 const techItems = [
-  { label: 'Next.js', icon: '⬡', color: '#fff', bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.18)', x: '12%', y: '14%', size: 1.0 },
+  { label: 'Next.js', icon: '⬡', color: '#6776ceff', bg: 'rgba(224, 46, 46, 0.08)', border: 'rgba(180, 81, 81, 0.18)', x: '12%', y: '14%', size: 1.0 },
   { label: 'React Native', icon: '⚛', color: '#4cc9f0', bg: 'rgba(76,201,240,0.1)', border: 'rgba(76,201,240,0.35)', x: '68%', y: '8%', size: 0.9 },
   { label: 'AI / ML', icon: '🧠', color: '#f72585', bg: 'rgba(247,37,133,0.1)', border: 'rgba(247,37,133,0.35)', x: '78%', y: '60%', size: 1.1 },
   { label: 'Cloud Native', icon: '☁', color: '#4361ee', bg: 'rgba(67,97,238,0.12)', border: 'rgba(67,97,238,0.4)', x: '6%', y: '65%', size: 0.95 },
@@ -77,25 +77,12 @@ function Scene3D() {
       <motion.div
         style={{ rotateX, rotateY, transformStyle: 'preserve-3d', width: '100%', height: '100%', position: 'relative' }}
       >
-        {/* ── Outer glow orb ── */}
-        <Box
-          sx={{
-            position: 'absolute', inset: '10%',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle at 38% 38%, rgba(67,97,238,0.55) 0%, rgba(114,9,183,0.35) 45%, transparent 70%)',
-            filter: 'blur(32px)',
-            animation: 'orbPulse 4s ease-in-out infinite',
-            '@keyframes orbPulse': {
-              '0%,100%': { opacity: 0.7, transform: 'scale(1)' },
-              '50%': { opacity: 1, transform: 'scale(1.08)' },
-            },
-          }}
-        />
+
 
         {/* ── Orbit rings ── */}
         {[{ size: '88%', delay: '0s', dur: '18s', rx: '72deg', ry: '20deg' },
-        { size: '68%', delay: '-6s', dur: '14s', rx: '55deg', ry: '-15deg' },
-        { size: '50%', delay: '-3s', dur: '10s', rx: '30deg', ry: '45deg' }].map((ring, i) => (
+        { size: '88%', delay: '-6s', dur: '14s', rx: '55deg', ry: '-15deg' },
+        { size: '88%', delay: '-3s', dur: '10s', rx: '30deg', ry: '45deg' }].map((ring, i) => (
           <Box
             key={i}
             sx={{
@@ -134,20 +121,12 @@ function Scene3D() {
             width: '36%', height: '36%',
             borderRadius: '50%',
             background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.25), rgba(67,97,238,0.6) 50%, rgba(114,9,183,0.8) 100%)',
-            boxShadow: '0 0 40px rgba(67,97,238,0.6), inset 0 0 30px rgba(255,255,255,0.1)',
             border: '1px solid rgba(255,255,255,0.2)',
             backdropFilter: 'blur(4px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          {/* "IX" monogram */}
-          <Box sx={{
-            fontFamily: 'Inter, sans-serif', fontWeight: 900,
-            fontSize: '1.1rem', color: 'rgba(255,255,255,0.95)',
-            letterSpacing: '-0.04em', textShadow: '0 2px 8px rgba(0,0,0,0.4)',
-          }}>
-            IX
-          </Box>
+          <FlashOn sx={{ color: '#fff', fontSize: '2.4rem' }} />
         </Box>
 
         {/* ── Floating tech badges ── */}
@@ -178,7 +157,6 @@ function Scene3D() {
                 background: item.bg,
                 border: `1px solid ${item.border}`,
                 backdropFilter: 'blur(12px)',
-                boxShadow: `0 4px 20px ${item.border}, 0 0 0 1px ${item.border}`,
                 whiteSpace: 'nowrap',
                 scale: item.size,
               }}

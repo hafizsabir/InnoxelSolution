@@ -22,6 +22,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import BlogPostRenderer from '@/components/blog/BlogPostRenderer';
 import ViewTracker from '@/components/blog/ViewTracker';
+import TranslatorWidget from '@/components/blog/TranslatorWidget';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -59,6 +60,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   return (
     <Box sx={{ minHeight: '100vh' }}>
       <ViewTracker slug={post.slug} />
+      <TranslatorWidget />
 
       {/* ── HERO: two-column layout ── */}
       <Box
@@ -209,7 +211,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               </Box>
 
               {/* Meta pills */}
-              <Stack direction="row" flexWrap="wrap" sx={{ gap: 1.5 }}>
+              <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
                 <Box
                   sx={{
                     display: 'flex',
@@ -384,7 +386,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         {/* Tags footer */}
         {(post.tags || []).length > 0 && (
           <Box sx={{ pt: 5, pb: 8, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Stack direction="row" flexWrap="wrap" alignItems="center" sx={{ gap: 1 }}>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 1 }}>
                 <LocalOffer sx={{ fontSize: 16, color: 'text.disabled' }} />
                 <Typography
