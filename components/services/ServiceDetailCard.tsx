@@ -150,8 +150,10 @@ export default function ServiceDetailCard({ service, index }: ServiceDetailCardP
             <Grid
               container
               spacing={{ xs: 4, md: 6 }}
-              alignItems="center"
-              direction={isEven ? 'row' : 'row-reverse'}
+              sx={{
+                alignItems: 'center',
+                flexDirection: isEven ? 'row' : 'row-reverse',
+              }}
             >
               {/* Left column — icon, title, CTA */}
               <Grid size={{ xs: 12, md: 4 }}>

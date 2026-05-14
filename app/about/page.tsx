@@ -1,8 +1,6 @@
+// app/about/page.tsx
 import type { Metadata } from 'next';
-import CompanyIntro from '@/components/about/CompanyIntro';
-import MissionVision from '@/components/about/MissionVision';
-import TeamSection from '@/components/about/TeamSection';
-import CompanyValues from '@/components/about/CompanyValues';
+import AboutClient from '@/components/about/AboutClient';
 
 export const metadata: Metadata = {
   title: 'About Us',
@@ -11,12 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function AboutPage() {
-  return (
-    <>
-      <CompanyIntro />
-      <MissionVision />
-      <TeamSection />
-      <CompanyValues />
-    </>
-  );
+  return <AboutClient />;
 }

@@ -1,8 +1,7 @@
+// app/page.tsx
+// Server component — imports a 'use client' shell that lazy-loads the sections.
 import type { Metadata } from 'next';
-import HeroSection from '@/components/home/HeroSection';
-import ServicesOverview from '@/components/home/ServicesOverview';
-import WhyChooseUs from '@/components/home/WhyChooseUs';
-import Testimonials from '@/components/home/Testimonials';
+import HomeClient from '@/components/home/HomeClient';
 
 export const metadata: Metadata = {
   title: 'Innoxel Solutions — Premium Software Development Company',
@@ -11,12 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return (
-    <>
-      <HeroSection />
-      <ServicesOverview />
-      <WhyChooseUs />
-      {/* <Testimonials /> */}
-    </>
-  );
+  return <HomeClient />;
 }

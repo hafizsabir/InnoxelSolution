@@ -37,6 +37,8 @@ const navLinks = [
   { label: 'About', href: '/about' },
   { label: 'Services', href: '/services' },
   { label: 'TechBlog', href: '/techblog' },
+  { label: 'Careers', href: '/careers' },
+  { label: 'Resume', href: '/resume-analyzer' },
   { label: 'Contact', href: '/contact' },
 ];
 

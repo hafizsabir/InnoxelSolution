@@ -71,7 +71,7 @@ export default function TeamSection() {
                     <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7, mb: 3 }}>
                       {member.bio}
                     </Typography>
-                    <Stack direction="row" justifyContent="center" spacing={1}>
+                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
                       <IconButton
                         href={member.linkedin}
                         size="small"
